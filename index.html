@@ -252,12 +252,14 @@ input[type="checkbox"]:checked + .checkbox-custom::after{transform:translateX(20
       </div>
       <div class="nav-col">
         <button id="nav-stages" class="sidebar-btn active-nav" data-i18n="stage">ステージ</button>
+        <button id="nav-survival" class="sidebar-btn" data-i18n="survival">サバイバル</button>
         <button id="nav-challenge" class="sidebar-btn" data-i18n="challengeNav">チャレンジ</button>
         <button id="nav-shop" class="sidebar-btn" data-i18n="shop">ショップ</button>
         <button id="nav-achieve" class="sidebar-btn" data-i18n="badges">実績／称号</button>
         <button id="nav-packs" class="sidebar-btn" data-i18n="packsNav">追加パック</button>
         <button id="btn-home-config" class="sidebar-btn" data-i18n="settings">設定 / SETTINGS</button>
         <button id="btn-reset-data" class="sidebar-btn" style="border-color:#444;color:#aaa;" data-i18n="resetNav">データ初期化</button>
+        <button id="btn-import-code" class="sidebar-btn" style="border-color:#00ffcc;color:#00ffcc;">データ引き継ぎ</button>
       </div>
     </aside>
     <main class="main-panel">
@@ -2899,10 +2901,156 @@ $("btn-reset-data").addEventListener("click", () => {
   applyTheme();
   updateVolumeLabels(); saveGameData(); updateHomeHUD(); showPanel("stages");
 });
+/* ===== セーブデータ引き継ぎコード（署名つき） ===== */
+const SaveCode = (() => {
+  const PREFIX = "RBB1";
+  const SECRET = "rbb-twin-courses::7f3a9c1e5b24d860::do-not-forge";
+  const te = new TextEncoder(), td = new TextDecoder();
+  const K = new Uint32Array([
+    0x428a2f98,0x71374491,0xb5c0fbcf,0xe9b5dba5,0x3956c25b,0x59f111f1,0x923f82a4,0xab1c5ed5,
+    0xd807aa98,0x12835b01,0x243185be,0x550c7dc3,0x72be5d74,0x80deb1fe,0x9bdc06a7,0xc19bf174,
+    0xe49b69c1,0xefbe4786,0x0fc19dc6,0x240ca1cc,0x2de92c6f,0x4a7484aa,0x5cb0a9dc,0x76f988da,
+    0x983e5152,0xa831c66d,0xb00327c8,0xbf597fc7,0xc6e00bf3,0xd5a79147,0x06ca6351,0x14292967,
+    0x27b70a85,0x2e1b2138,0x4d2c6dfc,0x53380d13,0x650a7354,0x766a0abb,0x81c2c92e,0x92722c85,
+    0xa2bfe8a1,0xa81a664b,0xc24b8b70,0xc76c51a3,0xd192e819,0xd6990624,0xf40e3585,0x106aa070,
+    0x19a4c116,0x1e376c08,0x2748774c,0x34b0bcb5,0x391c0cb3,0x4ed8aa4a,0x5b9cca4f,0x682e6ff3,
+    0x748f82ee,0x78a5636f,0x84c87814,0x8cc70208,0x90befffa,0xa4506ceb,0xbef9a3f7,0xc67178f2]);
+  function sha256(msg) {
+    const l = msg.length, padLen = (((l + 9 + 63) >> 6) << 6);
+    const buf = new Uint8Array(padLen); buf.set(msg); buf[l] = 0x80;
+    const dv = new DataView(buf.buffer);
+    dv.setUint32(padLen - 8, Math.floor((l * 8) / 4294967296)); dv.setUint32(padLen - 4, (l * 8) >>> 0);
+    const H = new Uint32Array([0x6a09e667,0xbb67ae85,0x3c6ef372,0xa54ff53a,0x510e527f,0x9b05688c,0x1f83d9ab,0x5be0cd19]);
+    const w = new Uint32Array(64);
+    const rr = (x, n) => (x >>> n) | (x << (32 - n));
+    for (let o = 0; o < padLen; o += 64) {
+      for (let i = 0; i < 16; i++) w[i] = dv.getUint32(o + i * 4);
+      for (let i = 16; i < 64; i++) {
+        const s0 = rr(w[i-15],7) ^ rr(w[i-15],18) ^ (w[i-15] >>> 3);
+        const s1 = rr(w[i-2],17) ^ rr(w[i-2],19) ^ (w[i-2] >>> 10);
+        w[i] = (w[i-16] + s0 + w[i-7] + s1) >>> 0;
+      }
+      let [a,b,c,d,e,f,g,h] = H;
+      for (let i = 0; i < 64; i++) {
+        const S1 = rr(e,6) ^ rr(e,11) ^ rr(e,25), ch = (e & f) ^ (~e & g);
+        const t1 = (h + S1 + ch + K[i] + w[i]) >>> 0;
+        const S0 = rr(a,2) ^ rr(a,13) ^ rr(a,22), mj = (a & b) ^ (a & c) ^ (b & c);
+        const t2 = (S0 + mj) >>> 0;
+        h = g; g = f; f = e; e = (d + t1) >>> 0; d = c; c = b; b = a; a = (t1 + t2) >>> 0;
+      }
+      H[0]=(H[0]+a)>>>0; H[1]=(H[1]+b)>>>0; H[2]=(H[2]+c)>>>0; H[3]=(H[3]+d)>>>0;
+      H[4]=(H[4]+e)>>>0; H[5]=(H[5]+f)>>>0; H[6]=(H[6]+g)>>>0; H[7]=(H[7]+h)>>>0;
+    }
+    const out = new Uint8Array(32), odv = new DataView(out.buffer);
+    H.forEach((v, i) => odv.setUint32(i * 4, v));
+    return out;
+  }
+  function hmac(key, msg) {
+    let k = key.length > 64 ? sha256(key) : key;
+    const kp = new Uint8Array(64); kp.set(k);
+    const ip = kp.map(b => b ^ 0x36), op = kp.map(b => b ^ 0x5c);
+    const inner = new Uint8Array(64 + msg.length); inner.set(ip); inner.set(msg, 64);
+    const outer = new Uint8Array(96); outer.set(op); outer.set(sha256(inner), 64);
+    return sha256(outer);
+  }
+  const keyBytes = te.encode(SECRET);
+  const hex = u8 => Array.from(u8, b => b.toString(16).padStart(2, "0")).join("");
+  const b64 = u8 => { let s = ""; for (let i = 0; i < u8.length; i += 8192) s += String.fromCharCode.apply(null, u8.subarray(i, i + 8192)); return btoa(s).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, ""); };
+  const unb64 = s => { s = s.replace(/-/g, "+").replace(/_/g, "/"); while (s.length % 4) s += "="; const bin = atob(s); const u = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) u[i] = bin.charCodeAt(i); return u; };
+  const mask = u8 => u8.map((b, i) => b ^ keyBytes[i % keyBytes.length] ^ ((i * 31 + 7) & 255));
+  const sign = body => hex(hmac(keyBytes, te.encode(body))).slice(0, 32);
+
+  function encode(saveObj) {
+    const json = JSON.stringify({ g: "rbb", v: 1, t: Date.now(), d: saveObj });
+    const body = b64(mask(te.encode(json)));
+    return `${PREFIX}.${body}.${sign(PREFIX + "." + body)}`;
+  }
+  function decode(code) {
+    const parts = String(code || "").trim().replace(/\s+/g, "").split(".");
+    if (parts.length !== 3 || parts[0] !== PREFIX) throw new Error("コードの形式が正しくありません");
+    const [, body, sig] = parts;
+    const expect = sign(PREFIX + "." + body);
+    let diff = expect.length ^ sig.length;
+    for (let i = 0; i < expect.length; i++) diff |= expect.charCodeAt(i) ^ (sig.charCodeAt(i) || 0);
+    if (diff !== 0) throw new Error("コードが改ざんされているか、壊れています");
+    let obj;
+    try { obj = JSON.parse(td.decode(mask(unb64(body)))); } catch (e) { throw new Error("コードを読み取れませんでした"); }
+    if (!obj || obj.g !== "rbb" || obj.v !== 1 || !obj.d || typeof obj.d !== "object") throw new Error("対応していないコードです");
+    return obj;
+  }
+  /* 念のための二重チェック：想定外の値は捨てる */
+  /* ステージ進行（unlockedStage / clearedCount / extraStages / installedPacks / eternalUnlocked / coursePackRevision）はゲーム1と2でステージが違うため移行しない */
+  const NUM = ["highScore","bPoints","totalBricksDestroyed","totalPlays","onlineRank","survivalBestTime","survivalBestScore","dailyBestScore","dailyRank","bgmVol","seVol"];
+  const STR = ["equippedPaddle","equippedBall","equippedTrail","equippedTheme","equippedAccessory","language","playerName","titleRank"];
+  const ARR = ["owned"], OBJ = ["achievements"], BOOL = ["shake"];
+  function sanitize(d) {
+    const o = {};
+    NUM.forEach(k => { if (typeof d[k] === "number" && isFinite(d[k]) && d[k] >= 0) o[k] = d[k]; });
+    STR.forEach(k => { if (typeof d[k] === "string" && d[k].length <= 64) o[k] = d[k]; });
+    ARR.forEach(k => { if (Array.isArray(d[k])) o[k] = d[k]; });
+    OBJ.forEach(k => { if (d[k] && typeof d[k] === "object" && !Array.isArray(d[k])) o[k] = d[k]; });
+    if (o.achievements) { const a = {}; Object.keys(o.achievements).forEach(k => { if (!k.startsWith("pack_stage_")) a[k] = o.achievements[k]; }); o.achievements = a; }
+    BOOL.forEach(k => { if (typeof d[k] === "boolean") o[k] = d[k]; });
+    return o;
+  }
+  return { encode, decode, sanitize };
+})();
+
+function openSaveCodeModal(opts) {
+  const old = document.getElementById("savecode-overlay"); if (old) old.remove();
+  const ov = document.createElement("div");
+  ov.id = "savecode-overlay";
+  ov.style.cssText = "position:fixed;inset:0;z-index:99999;display:flex;align-items:center;justify-content:center;background:rgba(5,6,10,.88);padding:16px;touch-action:auto;";
+  ov.innerHTML = `
+    <div style="width:min(560px,100%);max-height:100%;overflow:auto;background:var(--panel-color,#1a1c29);border:1px solid var(--accent-color,#00ffcc);border-radius:8px;padding:18px;color:var(--text-color,#fff);box-shadow:0 0 24px rgba(0,255,204,.25);font-family:inherit;">
+      <h3 style="margin:0 0 8px;color:var(--accent-color,#00ffcc);letter-spacing:1px;">${opts.title}</h3>
+      <p style="margin:0 0 10px;font-size:13px;line-height:1.5;color:var(--text-muted,#8892b0);">${opts.desc}</p>
+      <textarea id="savecode-text" ${opts.readonly ? "readonly" : ""} spellcheck="false" placeholder="${opts.placeholder || ""}" style="width:100%;height:150px;resize:vertical;box-sizing:border-box;background:var(--bg-color,#0d0e15);color:var(--text-color,#fff);border:1px solid var(--border-color,#2d3142);border-radius:4px;padding:8px;font:12px/1.4 monospace;word-break:break-all;user-select:text;-webkit-user-select:text;"></textarea>
+      <div id="savecode-msg" style="min-height:20px;margin:8px 0;font-size:13px;"></div>
+      <div style="display:flex;gap:8px;justify-content:flex-end;">
+        <button id="savecode-main" class="sidebar-btn" style="width:auto;padding:8px 16px;">${opts.mainLabel}</button>
+        <button id="savecode-close" class="sidebar-btn" style="width:auto;padding:8px 16px;">閉じる</button>
+      </div>
+    </div>`;
+  document.body.appendChild(ov);
+  const ta = ov.querySelector("#savecode-text"), msg = ov.querySelector("#savecode-msg");
+  const say = (t, ok) => { msg.textContent = t; msg.style.color = ok ? "#00ffcc" : "#ff4a5a"; };
+  ov.querySelector("#savecode-close").onclick = () => ov.remove();
+  ov.addEventListener("keydown", e => e.stopPropagation());
+  ov.addEventListener("keyup", e => e.stopPropagation());
+  opts.init && opts.init(ta, say);
+  ov.querySelector("#savecode-main").onclick = () => opts.onMain(ta, say, ov);
+}
+
+/* ===== 引き継ぎコードを読み込み（ゲーム2） ===== */
+function showImportCode() {
+  openSaveCodeModal({
+    title: "データ引き継ぎ",
+    desc: "ゲーム1で発行したコードを貼り付けて「引き継ぐ」を押してください。Bポイント・アイテム・実績・記録が引き継がれます。※ステージの進行状況はゲーム1と2でステージが全く違うため、引き継げません（このゲームの進行はそのまま残ります）。",
+    mainLabel: "引き継ぐ", readonly: false, placeholder: "RBB1.xxxxx.xxxxx",
+    onMain(ta, say, ov) {
+      try {
+        const obj = SaveCode.decode(ta.value);
+        const data = SaveCode.sanitize(obj.d);
+        if (!confirm("Bポイント・アイテム・実績・記録を上書きして引き継ぎます。\n（ステージの進行状況は引き継がれません）\n\nよろしいですか？")) return;
+        const existing = JSON.parse(localStorage.getItem(SAVE_KEY) || "{}");
+        localStorage.setItem(SAVE_KEY, JSON.stringify({ ...existing, ...data, updatedAt: Date.now() }));
+        loadGameData();
+        saveGameData();
+        updateHomeHUD(); renderPacks(); renderStageGrid(); showPanel("stages");
+        say("引き継ぎが完了しました！", true);
+        setTimeout(() => ov.remove(), 1200);
+      } catch (e) { say(e.message, false); }
+    }
+  });
+}
+$("btn-import-code").addEventListener("click", showImportCode);
+
 DOM.sliderBgm.addEventListener("input", () => { sound.setBGMVolume(Number(DOM.sliderBgm.value) / 100); DOM.bgmValue.textContent = `${DOM.sliderBgm.value}%`; });
 DOM.sliderSe.addEventListener("input", () => { sound.setSEVolume(Number(DOM.sliderSe.value) / 100); DOM.seValue.textContent = `${DOM.sliderSe.value}%`; });
 
 $("nav-stages").addEventListener("click", () => showPanel("stages"));
+$("nav-survival").addEventListener("click", () => { sound.init(); startSurvival(); });
 $("nav-challenge").addEventListener("click", () => showPanel("challenge"));
 $("nav-shop").addEventListener("click", () => showPanel("shop"));
 $("nav-achieve").addEventListener("click", () => showPanel("achieve"));
