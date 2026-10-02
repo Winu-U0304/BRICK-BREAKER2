@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <!-- saved from url=(0043)https://winu-u0304.github.io/BRICK-BREAKER/ -->
 <html lang="ja" style="--bg-color: #0a0a0a; --panel-color: #1c1c1c; --accent-color: #e0e0e0; --border-color: #3a3a3a;"><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
@@ -251,7 +252,6 @@ input[type="checkbox"]:checked + .checkbox-custom::after{transform:translateX(20
       </div>
       <div class="nav-col">
         <button id="nav-stages" class="sidebar-btn active-nav" data-i18n="stage">ステージ</button>
-        <button id="nav-survival" class="sidebar-btn" data-i18n="survival">サバイバル</button>
         <button id="nav-challenge" class="sidebar-btn" data-i18n="challengeNav">チャレンジ</button>
         <button id="nav-shop" class="sidebar-btn" data-i18n="shop">ショップ</button>
         <button id="nav-achieve" class="sidebar-btn" data-i18n="badges">実績／称号</button>
@@ -2903,7 +2903,6 @@ DOM.sliderBgm.addEventListener("input", () => { sound.setBGMVolume(Number(DOM.sl
 DOM.sliderSe.addEventListener("input", () => { sound.setSEVolume(Number(DOM.sliderSe.value) / 100); DOM.seValue.textContent = `${DOM.sliderSe.value}%`; });
 
 $("nav-stages").addEventListener("click", () => showPanel("stages"));
-$("nav-survival").addEventListener("click", () => { sound.init(); startSurvival(); });
 $("nav-challenge").addEventListener("click", () => showPanel("challenge"));
 $("nav-shop").addEventListener("click", () => showPanel("shop"));
 $("nav-achieve").addEventListener("click", () => showPanel("achieve"));
